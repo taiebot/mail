@@ -115,6 +115,7 @@ import { AttendeeProperty, createEvent, DateTimeValue, TextProperty } from '@nex
 import { showError, showSuccess } from '@nextcloud/dialogs'
 import { loadState } from '@nextcloud/initial-state'
 import { getTimezoneManager } from '@nextcloud/timezones'
+import { generateUrl } from '@nextcloud/router'
 import { NcDateTimePicker as DatetimePicker, NcModal as Modal, NcSelect } from '@nextcloud/vue'
 import jstz from 'jstz'
 import { mapState, mapStores } from 'pinia'
@@ -292,9 +293,12 @@ export default {
 				const calendar = createEvent(startDateTime, endDateTime)
 				const event = calendar.getFirstComponent('VEVENT')
 				event.addProperty(new TextProperty('SUMMARY', this.eventTitle))
-				if (this.description) {
-					event.addProperty(new TextProperty('DESCRIPTION', this.description))
-				}
+				const deeplink = this.getMailDeeplink()
+
+				let finalDescription = this.description || ''
+				finalDescription += `\n\n${t('mail', 'Link to original email')}: ${deeplink}`
+
+				event.addProperty(new TextProperty('DESCRIPTION' finalDescription))
 
 				const organizerEmail = this.organizerEmail?.toLowerCase() || ''
 
