@@ -298,7 +298,7 @@ export default {
 				let finalDescription = this.description || ''
 				finalDescription += `\n\n${t('mail', 'Link to original email')}: ${deeplink}`
 
-				event.addProperty(new TextProperty('DESCRIPTION' finalDescription))
+				event.addProperty(new TextProperty('DESCRIPTION', finalDescription))
 
 				const organizerEmail = this.organizerEmail?.toLowerCase() || ''
 
