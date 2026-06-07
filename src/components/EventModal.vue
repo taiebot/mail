@@ -222,9 +222,11 @@ export default {
 
 	methods: {
 		getMailDeeplink() {
-			return generateUrl(
-				`/apps/mail/deeplink/open/${encodeURIComponent(this.envelope.messageId)}`
+			const relativeUrl = generateUrl(
+				'apps/mail/deeplink/open/{messageId}',
+				{ messageId: this.envelope.messageId }
 			)
+			return `${window.location.origin}${relativeUrl}`
 		},
 				
 		addAttendee(option) {
@@ -302,7 +304,7 @@ export default {
 				const deeplink = this.getMailDeeplink()
 				event.addProperty(new TextProperty('URL', deeplink))
 				let finalDescription = this.description || ''
-				finalDescription += `\n\n${t('mail', 'Link to original email')}:\n${deeplink}`
+				finalDescription += `\n\n${t('mail', 'Link to original email')}: ${deeplink}`
 
 				event.addProperty(new TextProperty('DESCRIPTION', finalDescription))
 
