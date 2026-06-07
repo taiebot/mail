@@ -223,7 +223,7 @@ export default {
 	methods: {
 		getMailDeeplink() {
 			return generateUrl(
-				`'/apps/mail/deeplink/open/${encodeURIComponent(this.envelope.messageId)}'
+				'/apps/mail/deeplink/open/${encodeURIComponent(this.envelope.messageId)}'
 			)
 		},
 				
