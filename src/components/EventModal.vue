@@ -305,7 +305,7 @@ export default {
 				const deeplink = this.getMailDeeplink()
 				event.addProperty(new TextProperty('URL', deeplink))
 				let finalDescription = this.description || ''
-				finalDescription += `\n\n${t('mail', 'Link to original email')}: ${deeplink}`
+				finalDescription += '\n\n' + t('mail', 'Link to original email') + ': ' + deeplink
 
 				event.addProperty(new TextProperty('DESCRIPTION', finalDescription))
 
