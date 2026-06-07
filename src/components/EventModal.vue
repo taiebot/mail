@@ -223,7 +223,7 @@ export default {
 	methods: {
 		getMailDeeplink() {
 			return generateUrl(
-				'/apps/mail/deeplink/open/${encodeURIComponent(this.envelope.messageId)}'
+				`/apps/mail/deeplink/open/${encodeURIComponent(this.envelope.messageId)}`
 			)
 		},
 				
@@ -300,9 +300,9 @@ export default {
 				const event = calendar.getFirstComponent('VEVENT')
 				event.addProperty(new TextProperty('SUMMARY', this.eventTitle))
 				const deeplink = this.getMailDeeplink()
-
+				event.addProperty(new TextProperty('URL', deeplink))
 				let finalDescription = this.description || ''
-				finalDescription += '\n\n${t("mail", "Link to original email")}: ${deeplink}'
+				finalDescription += `\n\n${t('mail', 'Link to original email')}:\n${deeplink}`
 
 				event.addProperty(new TextProperty('DESCRIPTION', finalDescription))
 
