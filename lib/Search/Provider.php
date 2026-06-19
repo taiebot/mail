@@ -50,58 +50,6 @@ class Provider implements IProvider {
 	}
 
 	#[\Override]
-	public function getId(): string {<?php
-
-declare(strict_types=1);
-
-/**
- * SPDX-FileCopyrightText: 2020 Nextcloud GmbH and Nextcloud contributors
- * SPDX-License-Identifier: AGPL-3.0-or-later
- */
-
-namespace OCA\Mail\Search;
-
-use OCA\Mail\AppInfo\Application;
-use OCA\Mail\Contracts\IMailSearch;
-use OCA\Mail\Db\Message;
-use OCA\Mail\Service\Search\FilterStringParser;
-use OCP\IDateTimeFormatter;
-use OCP\IL10N;
-use OCP\IURLGenerator;
-use OCP\IUser;
-use OCP\Search\IProvider;
-use OCP\Search\ISearchQuery;
-use OCP\Search\SearchResult;
-use OCP\Search\SearchResultEntry;
-use function array_map;
-
-class Provider implements IProvider {
-	/** @var IMailSearch */
-	private $mailSearch;
-
-	/** @var IL10N */
-	private $l10n;
-
-	/** @var IDateTimeFormatter */
-	private $dateTimeFormatter;
-
-	/** @var IURLGenerator */
-	private $urlGenerator;
-
-	public function __construct(
-		IMailSearch $mailSearch,
-		IL10N $l10n,
-		IDateTimeFormatter $dateTimeFormatter,
-		IURLGenerator $urlGenerator,
-		private FilterStringParser $filterStringParser,
-	) {
-		$this->mailSearch = $mailSearch;
-		$this->l10n = $l10n;
-		$this->dateTimeFormatter = $dateTimeFormatter;
-		$this->urlGenerator = $urlGenerator;
-	}
-
-	#[\Override]
 	public function getId(): string {
 		return Application::APP_ID;
 	}
@@ -246,9 +194,9 @@ class Provider implements IProvider {
 				} else {
 					$from = null;
 				}
-				$deeplink = $this->urlGenerator->getAbsoluteURL(
-					'/index.php/apps/mail/deeplink/open/' . rawurlencode($message->getMessageId())
-				);
+				$deeplink = $this->urlGenerator->linkToRouteAbsolute('mail.deep_link.open', [
+   					'messageId' => $message->getMessageId(),
+				]); 
 				return new SearchResultEntry(
 					is_null($from) ? '' : $this->urlGenerator->linkToRoute('mail.avatars.image', [
 						'email' => $from,
