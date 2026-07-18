@@ -109,16 +109,15 @@ class Provider implements IProvider {
 				} else {
 					$from = null;
 				}
-				$deeplink = $this->urlGenerator->linkToRouteAbsolute('mail.deep_link.open', [
-					'messageId' => $message->getMessageId(),
-				]);
 				return new SearchResultEntry(
 					is_null($from) ? '' : $this->urlGenerator->linkToRoute('mail.avatars.image', [
 						'email' => $from,
 					]),
 					$message->getSubject(),
 					$subline,
-					$deeplink,
+					$this->urlGenerator->linkToRouteAbsolute('mail.deep_link.open', [
+						'messageId' => $message->getMessageId(),
+					]),
 					'icon-mail',
 					!is_null($from)
 				);
