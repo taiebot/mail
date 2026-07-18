@@ -43,8 +43,8 @@ use OCP\IRequest;
 use OCP\IURLGenerator;
 use OCP\IUserManager;
 use OCP\IUserSession;
-use OCP\TextProcessing\FreePromptTaskType;
-use OCP\TextProcessing\SummaryTaskType;
+use OCP\TaskProcessing\TaskTypes\TextToText;
+use OCP\TaskProcessing\TaskTypes\TextToTextSummary;
 use OCP\User\IAvailabilityCoordinator;
 use Psr\Log\LoggerInterface;
 use Throwable;
@@ -268,7 +268,7 @@ class PageController extends Controller {
 					'redirect_uri' => $this->urlGenerator->linkToRouteAbsolute('mail.googleIntegration.oauthRedirect'),
 					'response_type' => 'code',
 					'prompt' => 'consent',
-					'state' => '_accountId_', // Replaced by frontend
+					'state' => '_state_', // Replaced by frontend
 					'scope' => 'https://mail.google.com/',
 					'access_type' => 'offline',
 					'login_hint' => '_email_', // Replaced by frontend
@@ -285,7 +285,7 @@ class PageController extends Controller {
 					'redirect_uri' => $this->urlGenerator->linkToRouteAbsolute('mail.microsoftIntegration.oauthRedirect'),
 					'response_type' => 'code',
 					'response_mode' => 'query',
-					'state' => '_accountId_', // Replaced by frontend
+					'state' => '_state_', // Replaced by frontend
 					'scope' => 'offline_access https://outlook.office.com/IMAP.AccessAsUser.All https://outlook.office.com/SMTP.Send',
 					'access_type' => 'offline',
 					'login_hint' => '_email_', // Replaced by frontend
@@ -311,7 +311,7 @@ class PageController extends Controller {
 
 		$this->initialStateService->provideInitialState(
 			'llm_summaries_available',
-			$this->aiIntegrationsService->isLlmProcessingEnabled() && $this->aiIntegrationsService->isLlmAvailable(SummaryTaskType::class)
+			$this->aiIntegrationsService->isLlmProcessingEnabled() && $this->aiIntegrationsService->isLlmAvailable(TextToTextSummary::ID)
 		);
 
 		$this->initialStateService->provideInitialState(
@@ -321,13 +321,13 @@ class PageController extends Controller {
 
 		$this->initialStateService->provideInitialState(
 			'llm_freeprompt_available',
-			$this->aiIntegrationsService->isLlmProcessingEnabled() && $this->aiIntegrationsService->isLlmAvailable(FreePromptTaskType::class)
+			$this->aiIntegrationsService->isLlmProcessingEnabled() && $this->aiIntegrationsService->isLlmAvailable(TextToText::ID)
 		);
 
 		$this->initialStateService->provideInitialState(
 			'llm_followup_available',
 			$this->aiIntegrationsService->isLlmProcessingEnabled()
-			&& $this->aiIntegrationsService->isLlmAvailable(FreePromptTaskType::class)
+			&& $this->aiIntegrationsService->isLlmAvailable(TextToText::ID)
 		);
 
 		$this->initialStateService->provideInitialState(

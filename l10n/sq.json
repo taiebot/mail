@@ -30,6 +30,7 @@
     "Add mail account" : "Shto llogarinë e postës elektronike",
     "Newest first" : "Më i riu i pari",
     "Oldest first" : "Më i vjetri i pari",
+    "Ok" : "Në rregull",
     "Privacy" : "Privatësi",
     "Security" : "Siguria",
     "Manage certificates" : "Menaxhoni certifikatat",
@@ -43,15 +44,14 @@
     "Send" : "Dërgo",
     "Refresh" : "Rifresko",
     "About" : "Rreth",
-    "Ok" : "Në rregull",
     "Select account" : "Përzgjidhni llogari",
     "Subject" : "Temë",
     "Upload attachment" : "Ngarko bashkëngjitje",
     "Add attachment from Files" : "Shto bashkëlidhje nga Dosjet",
-    "Choose" : "Zgjidhni",
-    "Choose a file to add as attachment" : "Zgjidhni një kartelë që të shtohet si bashkëngjitje",
+    "Choose a file" : "Zgjidh një Skedar",
     "Confirm" : "Konfirmo",
     "Revoke" : "Anulo",
+    "Choose" : "Zgjidhni",
     "Unfavorite" : "Jo i/e preferuar",
     "Favorite" : "I/E Preferuar",
     "Read" : "Lexoni",
@@ -109,6 +109,7 @@
     "Delete tag" : "Fshi etiketën",
     "Tag already exists" : "Etiketa ekziston",
     "Add tag" : "Shto etiketim",
+    "From:" : "Nga:",
     "To:" : "Deri më:",
     "Deleted" : "E fshirë",
     "Recipient" : "Marrës",
@@ -142,6 +143,7 @@
     "Message sent" : "Mesazhi u dërgua",
     "Could not load {tag}{name}{endtag}" : "Nuk mund të ngarkohej {tag}{name}{endtag}",
     "There was a problem loading {tag}{name}{endtag}" : "Pati një problem me ngarkimin e {tag}{name}{endtag}",
-    "Error loading message" : "Gabim në ngarkimin e kartelës"
+    "Error loading message" : "Gabim në ngarkimin e kartelës",
+    "Choose a file to add as attachment" : "Zgjidhni një kartelë që të shtohet si bashkëngjitje"
 },"pluralForm" :"nplurals=2; plural=(n != 1);"
 }

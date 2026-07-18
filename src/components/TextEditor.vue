@@ -248,6 +248,22 @@ export default {
 					],
 				},
 
+				// Preserve arbitrary font sizes/families on inserted or pasted
+				// HTML (e.g. app-generated signatures). Without supportAllValues
+				// the Font plugins drop any value not in their preset list, so
+				// raw-HTML signatures lose font-size/font-family on send.
+				// NOTE: supportAllValues is incompatible with the default *named*
+				// presets ('tiny'/'big'/…) — it requires numeric options, or
+				// CKEditor throws at init and the editor fails to mount.
+				fontSize: {
+					options: [9, 10, 11, 12, 13, 14, 16, 18, 24, 'default'],
+					supportAllValues: true,
+				},
+
+				fontFamily: {
+					supportAllValues: true,
+				},
+
 			},
 		}
 	},
@@ -570,6 +586,13 @@ export default {
 			editor.keystrokes.set('Ctrl+Enter', (event) => {
 				logger.debug('Detected Ctrl+Enter/Cmd+Enter', event)
 				this.$emit('submit', editor)
+			})
+
+			editor.keystrokes.set('Ctrl+S', (event) => {
+				event.preventDefault()
+				event.stopPropagation()
+				logger.debug('Detected Ctrl+S/Cmd+S', event)
+				this.$emit('save', editor)
 			})
 
 			this.editorInstance = editor

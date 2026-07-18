@@ -42,11 +42,10 @@ OC.L10N.register(
     "About" : "A prepaus",
     "From" : "De",
     "Monday morning" : "Diluns matin",
-    "Choose" : "Causir",
-    "Choose a file to add as attachment" : "Causissètz un fichièr de jónher al messatge",
     "Confirm" : "Confirmar",
     "Revoke" : "Revocar",
     "No messages" : "Cap de messatge",
+    "Choose" : "Causir",
     "Tomorrow – {timeLocale}" : "Deman – {timeLocale}",
     "Favorite" : "Favorit",
     "Read" : "Legit",
@@ -92,6 +91,7 @@ OC.L10N.register(
     "Tags" : "Etiquetas",
     "Custom" : "Personalizats",
     "Not found" : "Non trobat",
+    "From:" : "Del :",
     "To:" : "Al :",
     "Translate message" : "Traduire lo messatge",
     "Translating" : "Traduccion",
@@ -126,6 +126,7 @@ OC.L10N.register(
     "Error while sharing file" : "Error pendent lo partiment del fichièr",
     "{from}\n{subject}" : "{from}\n{subject}",
     "Message sent" : "Messatge mandat",
-    "Error loading message" : "Error al moment del cargament del messatge"
+    "Error loading message" : "Error al moment del cargament del messatge",
+    "Choose a file to add as attachment" : "Causissètz un fichièr de jónher al messatge"
 },
 "nplurals=2; plural=(n > 1);");
