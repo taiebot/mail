@@ -111,10 +111,21 @@ After completing code changes:
    - There is a [contributing doc](./.github/CONTRIBUTING.md) with suggestions
 8. The user will review and commit when ready
 
+### PR Review Workflow
+
+Once a branch is pushed and under review, **do not force-push**. Reviewers track changes incrementally — a force-push destroys that history and forces them to re-read the full diff from scratch.
+
+Instead, address feedback with **fixup commits**:
+```bash
+git commit --fixup=<sha>   # targets the specific commit being corrected
+```
+
+The branch will be rebased and squashed into a clean history before merge (CI enforces this). The failing "clean history" CI check is intentional and expected during review — ignore it until the PR has a positive review, then rebase to clean up.
+
 ### Commit Message Format
 
-All commits must include two lines at the end:
-1. Agent/model attribution: `AI-assisted: <agent> (model)`
+All commits must include two trailers at the end:
+1. Agent/model attribution: `Assisted-by: <AgentName>:<model-id>`
 2. DCO sign-off: Use `git commit -s` to add automatically
 
 When committing, use: `git commit -m "message" -s`
@@ -123,11 +134,19 @@ This ensures the sign-off includes your configured Git user email.
 
 Example:
 ```
-fix(deps): Update package dependencies
+fix(deps): update package dependencies
 
-- Updated package X to latest stable version
-- Verified all tests pass
+- update package X to latest stable version
+- verify all tests pass
 
-AI-assisted: OpenCode (Claude Haiku 4.5)
+Assisted-by: Claude:claude-sonnet-4-6
 Signed-off-by: Name <email>
 ```
+
+### Styling
+
+For all CSS colors, spacing, and dimensions, you must use the standard Nextcloud CSS variables.
+
+Do not leave any magic numbers. If you need more specific control over dimensions use `calc(x*var)` when necessary.
+
+You can find the CSS variables already in use in this repository, and the full documentation available at this link: https://docs.nextcloud.com/server/latest/developer_manual/html_css_design/css.html.

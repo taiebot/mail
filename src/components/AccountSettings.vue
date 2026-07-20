@@ -106,8 +106,9 @@
 			</div>
 		</AppSettingsSection>
 		<AppSettingsSection
-			v-if="account && !account.provisioningId"
+			v-if="account && !account.provisioningId && !account.isDelegated"
 			id="mail-server"
+			ref="mail-server"
 			:name="t('mail', 'Mail server')">
 			<div id="mail-settings">
 				<AccountForm
@@ -195,6 +196,11 @@ export default {
 			type: Boolean,
 			default: false,
 		},
+
+		scrollToSection: {
+			type: String,
+			default: undefined,
+		},
 	},
 
 	data() {
@@ -226,6 +232,15 @@ export default {
 					accountId: this.account.id,
 				})
 			}
+		},
+
+		scrollToSection(newState) {
+			this.$nextTick(() => {
+				this.$refs[newState]?.$el?.scrollIntoView({
+					behavior: 'smooth',
+					block: 'start',
+				})
+			})
 		},
 	},
 

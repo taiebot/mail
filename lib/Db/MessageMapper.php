@@ -53,20 +53,14 @@ class MessageMapper extends QBMapper {
 	/** @var ITimeFactory */
 	private $timeFactory;
 
-	/** @var TagMapper */
-	private $tagMapper;
-
-	/** @var PerformanceLogger */
-	private $performanceLogger;
-
-	public function __construct(IDBConnection $db,
+	public function __construct(
+		IDBConnection $db,
 		ITimeFactory $timeFactory,
-		TagMapper $tagMapper,
-		PerformanceLogger $performanceLogger) {
+		private TagMapper $tagMapper,
+		private PerformanceLogger $performanceLogger,
+	) {
 		parent::__construct($db, 'mail_messages');
 		$this->timeFactory = $timeFactory;
-		$this->tagMapper = $tagMapper;
-		$this->performanceLogger = $performanceLogger;
 	}
 
 	/**
@@ -129,6 +123,20 @@ class MessageMapper extends QBMapper {
 			throw new DoesNotExistException("Message $id does not exist");
 		}
 		return $results[0];
+	}
+
+	/**
+	 * @throws DoesNotExistException
+	 */
+	public function findAccountIdForMessage(int $messageId): int {
+		$qb = $this->db->getQueryBuilder();
+		$qb->select('mb.account_id')
+			->from($this->getTableName(), 'm')
+			->join('m', 'mail_mailboxes', 'mb', $qb->expr()->eq('m.mailbox_id', 'mb.id', IQueryBuilder::PARAM_INT))
+			->where($qb->expr()->eq('m.id', $qb->createNamedParameter($messageId, IQueryBuilder::PARAM_INT)));
+
+		$row = $this->findOneQuery($qb);
+		return (int)$row['account_id'];
 	}
 
 	public function findAllUids(Mailbox $mailbox): array {
@@ -460,7 +468,6 @@ class MessageMapper extends QBMapper {
 			}
 		}
 
-
 		try {
 			// UPDATE messages SET flag true/false WHERE uid in (uids) -> for each flag
 			// => total of 20 queries
@@ -531,7 +538,8 @@ class MessageMapper extends QBMapper {
 	 */
 	private function updateTags(Account $account, Message $message, array $tags, PerformanceLoggerTask $perf): void {
 		$imapTags = $message->getTags();
-		$dbTags = $tags[$message->getMessageId()] ?? [];
+		$messageId = $message->getMessageId();
+		$dbTags = $messageId !== null ? ($tags[$messageId] ?? []) : [];
 
 		if ($imapTags === [] && $dbTags === []) {
 			// neither old nor new tags
@@ -940,7 +948,6 @@ class MessageMapper extends QBMapper {
 			);
 		}
 
-
 		if ($query->getHasAttachments()) {
 			$select->andWhere(
 				$qb->expr()->eq('m.flag_attachments', $qb->createNamedParameter($query->getHasAttachments(), IQueryBuilder::PARAM_INT))
@@ -1178,16 +1185,12 @@ class MessageMapper extends QBMapper {
 			throw new RuntimeException('Invalid operand type ' . get_class($operand));
 		}, $expr->getOperands());
 
-		switch ($expr->getOperator()) {
-			case 'and':
-				/** @psalm-suppress InvalidCast */
-				return (string)$qb->expr()->andX(...$operands);
-			case 'or':
-				/** @psalm-suppress InvalidCast */
-				return (string)$qb->expr()->orX(...$operands);
-			default:
-				throw new RuntimeException('Unknown operator ' . $expr->getOperator());
-		}
+		/** @psalm-suppress InvalidCast */
+		return match ($expr->getOperator()) {
+			'and' => (string)$qb->expr()->andX(...$operands),
+			'or' => (string)$qb->expr()->orX(...$operands),
+			default => throw new RuntimeException('Unknown operator ' . $expr->getOperator()),
+		};
 	}
 
 	private function flagToColumnName(Flag $flag): string {
@@ -1340,7 +1343,8 @@ class MessageMapper extends QBMapper {
 		$tags = $this->tagMapper->getAllTagsForMessages($messages, $userId);
 		/** @var Message $message */
 		$messages = array_map(static function ($message) use ($tags) {
-			$message->setTags($tags[$message->getMessageId()] ?? []);
+			$messageId = $message->getMessageId();
+			$message->setTags($messageId !== null ? ($tags[$messageId] ?? []) : []);
 			return $message;
 		}, $messages);
 		return $messages;

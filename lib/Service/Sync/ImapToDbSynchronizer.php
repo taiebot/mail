@@ -50,59 +50,24 @@ class ImapToDbSynchronizer {
 	/** @var int */
 	public const MAX_NEW_MESSAGES = 5000;
 
-	/** @var DatabaseMessageMapper */
-	private $dbMapper;
-
-	/** @var IMAPClientFactory */
-	private $clientFactory;
-
-	/** @var ImapMessageMapper */
-	private $imapMapper;
-
-	/** @var MailboxMapper */
-	private $mailboxMapper;
-
-	/** @var Synchronizer */
-	private $synchronizer;
-
 	/** @var IEventDispatcher */
 	private $dispatcher;
 
-	/** @var PerformanceLogger */
-	private $performanceLogger;
-
-	/** @var LoggerInterface */
-	private $logger;
-
-	/** @var IMailManager */
-	private $mailManager;
-
-	private TagMapper $tagMapper;
-	private NewMessagesClassifier $newMessagesClassifier;
-
-	public function __construct(DatabaseMessageMapper $dbMapper,
-		IMAPClientFactory $clientFactory,
-		ImapMessageMapper $imapMapper,
-		MailboxMapper $mailboxMapper,
+	public function __construct(
+		private DatabaseMessageMapper $dbMapper,
+		private IMAPClientFactory $clientFactory,
+		private ImapMessageMapper $imapMapper,
+		private MailboxMapper $mailboxMapper,
 		DatabaseMessageMapper $messageMapper,
-		Synchronizer $synchronizer,
+		private Synchronizer $synchronizer,
 		IEventDispatcher $dispatcher,
-		PerformanceLogger $performanceLogger,
-		LoggerInterface $logger,
-		IMailManager $mailManager,
-		TagMapper $tagMapper,
-		NewMessagesClassifier $newMessagesClassifier) {
-		$this->dbMapper = $dbMapper;
-		$this->clientFactory = $clientFactory;
-		$this->imapMapper = $imapMapper;
-		$this->mailboxMapper = $mailboxMapper;
-		$this->synchronizer = $synchronizer;
+		private PerformanceLogger $performanceLogger,
+		private LoggerInterface $logger,
+		private IMailManager $mailManager,
+		private TagMapper $tagMapper,
+		private NewMessagesClassifier $newMessagesClassifier,
+	) {
 		$this->dispatcher = $dispatcher;
-		$this->performanceLogger = $performanceLogger;
-		$this->logger = $logger;
-		$this->mailManager = $mailManager;
-		$this->tagMapper = $tagMapper;
-		$this->newMessagesClassifier = $newMessagesClassifier;
 	}
 
 	/**
@@ -335,57 +300,56 @@ class ImapToDbSynchronizer {
 			$logger
 		);
 
-		// Need a client without a cache
-		$client->logout();
-		$client = $this->clientFactory->getClient($account, false);
-
-		$highestKnownUid = $this->dbMapper->findHighestUid($mailbox);
+		// Use a no-cache client for findAll. Horde accumulates cache state on
+		// every iteration of the findAll loop, causing a memory leak on large
+		// mailboxes (commit e50c214ff). Do NOT logout $client — the caller owns
+		// it and we need it below for getSyncToken.
+		$noCacheClient = $this->clientFactory->getClient($account, false);
 		try {
-			$imapMessages = $this->imapMapper->findAll(
-				$client,
-				$mailbox->getName(),
-				self::MAX_NEW_MESSAGES,
-				$highestKnownUid ?? 0,
-				$logger,
-				$perf,
-				$account->getUserId(),
-			);
-			$perf->step(sprintf('fetch %d messages from IMAP', count($imapMessages)));
-		} catch (Horde_Imap_Client_Exception $e) {
-			throw new ServiceException('Can not get messages from mailbox ' . $mailbox->getName() . ': ' . $e->getMessage(), 0, $e);
-		}
+			$highestKnownUid = $this->dbMapper->findHighestUid($mailbox);
+			try {
+				$imapMessages = $this->imapMapper->findAll(
+					$noCacheClient,
+					$mailbox->getName(),
+					self::MAX_NEW_MESSAGES,
+					$highestKnownUid ?? 0,
+					$logger,
+					$perf,
+					$account->getUserId(),
+				);
+				$perf->step(sprintf('fetch %d messages from IMAP', count($imapMessages)));
+			} catch (Horde_Imap_Client_Exception $e) {
+				throw new ServiceException('Can not get messages from mailbox ' . $mailbox->getName() . ': ' . $e->getMessage(), 0, $e);
+			}
 
-		foreach (array_chunk($imapMessages['messages'], 500) as $chunk) {
-			$messages = array_map(static fn (IMAPMessage $imapMessage) => $imapMessage->toDbMessage($mailbox->getId(), $account->getMailAccount()), $chunk);
-			$this->dbMapper->insertBulk($account, ...$messages);
-			$perf->step(sprintf('persist %d messages in database', count($chunk)));
-			// Free the memory
-			unset($messages);
-		}
+			foreach (array_chunk($imapMessages['messages'], 500) as $chunk) {
+				$messages = array_map(static fn (IMAPMessage $imapMessage) => $imapMessage->toDbMessage($mailbox->getId(), $account->getMailAccount()), $chunk);
+				$this->dbMapper->insertBulk($account, ...$messages);
+				$perf->step(sprintf('persist %d messages in database', count($chunk)));
+				// Free the memory
+				unset($messages);
+			}
 
-		if (!$imapMessages['all']) {
-			// We might need more attempts to fill the cache
-			$loggingMailboxId = $account->getId() . ':' . $mailbox->getName();
-			$total = $imapMessages['total'];
-			$cached = count($this->dbMapper->findAllUids($mailbox));
-			$perf->step('find number of cached UIDs');
+			if (!$imapMessages['all']) {
+				// We might need more attempts to fill the cache
+				$loggingMailboxId = $account->getId() . ':' . $mailbox->getName();
+				$total = $imapMessages['total'];
+				$cached = count($this->dbMapper->findAllUids($mailbox));
+				$perf->step('find number of cached UIDs');
 
-			$perf->end();
-			throw new IncompleteSyncException("Initial sync is not complete for $loggingMailboxId ($cached of $total messages cached).");
-		}
-
-		// Get the sync token from a cache-enabled client. The non-cache client
-		// used above does not activate CONDSTORE/QRESYNC, so its sync token
-		// lacks HIGHESTMODSEQ. Without it, the first partial sync falls into
-		// Horde's "no MODSEQ" fallback that resolves ALL UIDs, causing OOM on
-		// large mailboxes.
-		$client->logout();
-		$cacheClient = $this->clientFactory->getClient($account);
-		try {
-			$syncToken = $cacheClient->getSyncToken($mailbox->getName());
+				$perf->end();
+				throw new IncompleteSyncException("Initial sync is not complete for $loggingMailboxId ($cached of $total messages cached).");
+			}
 		} finally {
-			$cacheClient->logout();
+			$noCacheClient->logout();
 		}
+
+		// Use the cache-enabled $client passed in for the sync token. The no-cache
+		// client does not activate CONDSTORE/QRESYNC (commit 7980d9e40), so its
+		// token lacks HIGHESTMODSEQ — causing the first partial sync to resolve ALL
+		// UIDs and run OOM on large mailboxes. Do NOT logout $client here; the
+		// caller (syncAccount) owns and closes it.
+		$syncToken = $client->getSyncToken($mailbox->getName());
 		$mailbox->setSyncNewToken($syncToken);
 		$mailbox->setSyncChangedToken($syncToken);
 		$mailbox->setSyncVanishedToken($syncToken);

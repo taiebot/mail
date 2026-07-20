@@ -3,7 +3,11 @@
   - SPDX-License-Identifier: AGPL-3.0-or-later
 -->
 <template>
-	<div class="message-composer">
+	<div
+		class="message-composer"
+		@dragover.prevent
+		@drop="onDrop"
+		@paste="onPaste">
 		<NcReferencePickerModal
 			v-if="isPickerAvailable && isPickerOpen"
 			id="reference-picker"
@@ -264,6 +268,7 @@
 				@input="onEditorInput"
 				@ready="onEditorReady"
 				@mention="handleMention"
+				@save="onEditorSave"
 				@submit="onEditorSubmit" />
 			<MailvelopeEditor
 				v-else
@@ -277,6 +282,7 @@
 		<ComposerAttachments
 			v-model="attachments"
 			:bus="bus"
+			:account-id="selectedAlias.id"
 			:upload-size-limit="attachmentSizeLimit"
 			@upload="$emit('upload-attachment', $event, getMessageData())" />
 		<div class="composer-actions-right composer-actions">
@@ -346,14 +352,6 @@
 						</template>
 						{{
 							t('mail', 'Add attachment from Files')
-						}}
-					</ActionButton>
-					<ActionButton :close-after-click="true" :disabled="encrypt" @click="onAddCloudAttachmentLink">
-						<template #icon>
-							<IconPublic :size="20" />
-						</template>
-						{{
-							t('mail', 'Add share link from Files')
 						}}
 					</ActionButton>
 				</Actions>
@@ -509,7 +507,6 @@ import { showError, showWarning } from '@nextcloud/dialogs'
 import { getCanonicalLocale, getFirstDay, getLocale, translate as t } from '@nextcloud/l10n'
 import moment from '@nextcloud/moment'
 import { NcActionButton as ActionButton, NcActionCheckbox as ActionCheckbox, NcActionInput as ActionInput, NcActionRadio as ActionRadio, NcActions as Actions, NcButton as ButtonVue, NcListItemIcon as ListItemIcon, NcIconSvgWrapper, NcSelect } from '@nextcloud/vue'
-import addressParser from 'address-rfc2822'
 import debouncePromise from 'debounce-promise'
 import debounce from 'lodash/fp/debounce.js'
 import trimStart from 'lodash/fp/trimCharsStart.js'
@@ -522,7 +519,6 @@ import { NcReferencePickerModal } from '@nextcloud/vue/components/NcRichText'
 import ChevronLeft from 'vue-material-design-icons/ChevronLeft.vue'
 import IconFolder from 'vue-material-design-icons/FolderOutline.vue'
 import IconFormat from 'vue-material-design-icons/FormatSize.vue'
-import IconPublic from 'vue-material-design-icons/Link.vue'
 import Paperclip from 'vue-material-design-icons/Paperclip.vue'
 import SendClock from 'vue-material-design-icons/SendClockOutline.vue'
 import Send from 'vue-material-design-icons/SendOutline.vue'
@@ -544,6 +540,7 @@ import { findRecipient } from '../service/AutocompleteService.js'
 import { savePreference } from '../service/PreferenceService.js'
 import { EDITOR_MODE_HTML, EDITOR_MODE_TEXT } from '../store/constants.js'
 import useMainStore from '../store/mainStore.js'
+import { parseEmailList } from '../util/emailAddress.js'
 import { formatDateTime } from '../util/formatDateTime.js'
 import { detect, html, toHtml, toPlain } from '../util/text.js'
 import textBlockSvg from './../../img/text_snippet.svg'
@@ -571,7 +568,6 @@ export default {
 		Download,
 		IconUpload,
 		IconFolder,
-		IconPublic,
 		IconLinkPicker,
 		NcSelect,
 		NcIconSvgWrapper,
@@ -703,6 +699,11 @@ export default {
 		isFirstOpen: {
 			type: Boolean,
 			required: true,
+		},
+
+		isDraft: {
+			type: Boolean,
+			default: false,
 		},
 
 		requestMdn: {
@@ -1008,7 +1009,7 @@ export default {
 		},
 
 		aliases(newAliases) {
-			console.debug('aliases changed')
+			logger.debug('aliases changed')
 			if (this.selectedAlias === NO_ALIAS_SET) {
 				return
 			}
@@ -1122,7 +1123,7 @@ export default {
 		}
 	},
 
-	beforeUnmount() {
+	beforeDestroy() {
 		window.removeEventListener('mailvelope', this.onMailvelopeLoaded)
 	},
 
@@ -1130,8 +1131,9 @@ export default {
 		/**
 		 * Called once a user leaves the recipient picker.
 		 *
-		 * If the user is typing something that looks like a valid email address, we clear the input (return true)
-		 * because the related code in onNewAddr will add the value as a recipient.
+		 * If the user is typing something that looks like a valid email address (or a
+		 * pasted list of addresses), we clear the input (return true) because the
+		 * related code in onNewAddr will add the value as a recipient.
 		 *
 		 * Otherwise, the user is still typing and we don't clear the input.
 		 *
@@ -1140,7 +1142,7 @@ export default {
 		 */
 		clearOnBlur(event) {
 			if (this.recipientSearchTerms[event]) {
-				return this.seemsValidEmailAddress(this.recipientSearchTerms[event])
+				return parseEmailList(this.recipientSearchTerms[event]).length > 0
 			}
 			return false
 		},
@@ -1328,10 +1330,19 @@ export default {
 
 		onEditorReady(editor) {
 			this.bodyVal = editor.getData()
-			this.insertSignature()
+
+			// Only append signature on opening drafts if alias changed.
+			// Otherwise leads to unwanted or even duplicate signatures.
+			if (!this.isDraft || this.changeSignature) {
+				this.insertSignature()
+			}
 			if (this.smartReply) {
 				this.bus.emit('append-to-body-at-cursor', this.smartReply)
 			}
+		},
+
+		onEditorSave(editor) {
+			this.saveDraft()
 		},
 
 		onEditorSubmit(editor) {
@@ -1394,10 +1405,6 @@ export default {
 		onAddCloudAttachment() {
 			this.bus.emit('on-add-cloud-attachment')
 			this.saveDraftDebounced()
-		},
-
-		onAddCloudAttachmentLink() {
-			this.bus.emit('on-add-cloud-attachment-link')
 		},
 
 		onAutocomplete(term, addressType) {
@@ -1470,27 +1477,71 @@ export default {
 		},
 
 		onNewAddr(option, list, type) {
+			// Build a Set of already-selected emails for O(1) case-insensitive dedup.
+			const existing = new Set(list.map((r) => r.email.toLowerCase()))
+
 			if (
 				(option === null || option === undefined)
 				&& this.recipientSearchTerms[type] !== undefined
 				&& this.recipientSearchTerms[type] !== ''
 			) {
-				if (!this.seemsValidEmailAddress(this.recipientSearchTerms[type])) {
+				const parsedFromSearch = parseEmailList(this.recipientSearchTerms[type])
+				if (parsedFromSearch.length === 0) {
 					return
 				}
-				option = {}
-				option.email = this.recipientSearchTerms[type]
-				option.label = this.recipientSearchTerms[type]
 				this.recipientSearchTerms[type] = ''
-			}
 
-			if (list.some((recipient) => recipient.email === option?.email) || !option) {
+				let changed = false
+				for (const addr of parsedFromSearch) {
+					if (!existing.has(addr.email.toLowerCase())) {
+						const recipient = { ...addr }
+						this.newRecipients.push(recipient)
+						list.push(recipient)
+						existing.add(addr.email.toLowerCase())
+						changed = true
+					}
+				}
+				if (changed) {
+					this.saveDraftDebounced()
+				}
 				return
 			}
-			const recipient = { ...option }
-			this.newRecipients.push(recipient)
-			list.push(recipient)
-			this.saveDraftDebounced()
+
+			if (!option) {
+				return
+			}
+
+			let changed = false
+			if (option.id) {
+				if (!existing.has(option.email.toLowerCase())) {
+					const recipient = { ...option }
+					this.newRecipients.push(recipient)
+					list.push(recipient)
+					changed = true
+				}
+			} else {
+				const emailList = parseEmailList(option.email)
+				// When createRecipientOption normalised a named address like
+				// "Jane Doe <jane@doe.tld>" it stored the display name in
+				// option.label but reduced option.email to the bare address.
+				// Re-parsing that bare address loses the display name, so for
+				// single-address options we trust option.label directly.
+				const recipientsToAdd = emailList.length === 1
+					? [{ email: option.email, label: option.label ?? option.email }]
+					: emailList
+				for (const addr of recipientsToAdd) {
+					if (!existing.has(addr.email.toLowerCase())) {
+						const recipient = { ...addr }
+						this.newRecipients.push(recipient)
+						list.push(recipient)
+						existing.add(addr.email.toLowerCase())
+						changed = true
+					}
+				}
+			}
+			if (changed) {
+				this.saveDraftDebounced()
+			}
 		},
 
 		async onSend() {
@@ -1659,10 +1710,18 @@ export default {
 		 * @return {{email: string, label: string}} The new option
 		 */
 		createRecipientOption(value) {
-			if (!this.seemsValidEmailAddress(value)) {
-				throw new Error('Skipping because it does not look like a valid email address')
+			const parsed = parseEmailList(value)
+			if (parsed.length === 0) {
+				throw new Error('Skipping because it does not look like valid email address(es)')
 			}
-			return { email: value, label: value }
+			// For a single address, return the normalised email/label so the chip
+			// shows a clean address rather than the raw typed/pasted string.
+			if (parsed.length === 1) {
+				return { email: parsed[0].email, label: parsed[0].label }
+			}
+			// For multi-address pastes keep the raw value so onNewAddr can expand
+			// all addresses from option.email.
+			return { email: value.trim(), label: value.trim() }
 		},
 
 		/**
@@ -1686,20 +1745,42 @@ export default {
 			return option.email
 		},
 
-		/**
-		 * True when value looks like a valid email address
-		 *
-		 * @param {string} value to check if email address
-		 * @return {boolean}
-		 */
-		seemsValidEmailAddress(value) {
-			try {
-				addressParser.parse(value)
-				return true
-			} catch (error) {
-				return false
+		onDrop(event) {
+			event.preventDefault()
+
+			const files = Array.from(event.dataTransfer.files)
+
+			if (!files.length) {
+				return
 			}
+
+			this.bus.emit('on-add-local-files', files)
+			this.saveDraftDebounced()
 		},
+
+		onPaste(event) {
+			const files = []
+
+			for (const item of event.clipboardData.items) {
+				if (item.kind === 'file') {
+					const file = item.getAsFile()
+
+					if (file) {
+						files.push(file)
+					}
+				}
+			}
+
+			if (!files.length) {
+				return
+			}
+
+			event.preventDefault()
+
+			this.bus.emit('on-add-local-files', files)
+			this.saveDraftDebounced()
+		},
+
 	},
 }
 </script>

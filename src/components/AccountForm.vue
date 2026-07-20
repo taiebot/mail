@@ -65,7 +65,7 @@
 					{{ t('mail', 'Please enter an email of the format name@example.com') }}
 				</p>
 
-				<h3>{{ t('mail', 'IMAP Settings') }}</h3>
+				<h4>{{ t('mail', 'IMAP Settings') }}</h4>
 				<NcInputField
 					id="man-imap-host"
 					v-model="manualConfig.imapHost"
@@ -144,7 +144,7 @@
 					required
 					@change="clearFeedback" />
 
-				<h3>{{ t('mail', 'SMTP Settings') }}</h3>
+				<h4>{{ t('mail', 'SMTP Settings') }}</h4>
 				<NcInputField
 					id="man-smtp-host"
 					ref="smtpHost"
@@ -234,7 +234,10 @@
 			</Tab>
 		</Tabs>
 		<div v-if="isGoogleAccount && !googleOauthUrl" class="account-form__google-sso">
-			{{ t('mail', 'For the Google account to work with this app you need to enable two-factor authentication for Google and generate an app password.') }}
+			{{ t('mail', 'Google requires OAuth authentication. If your Nextcloud admin has not configured Google OAuth, you can use a Google App Password instead.') }}
+		</div>
+		<div v-if="isMicrosoftAccount && !microsoftOauthUrl" class="account-form__microsoft-sso">
+			{{ t('mail', 'Microsoft requires OAuth authentication. Ask your Nextcloud admin to configure Microsoft OAuth in the admin settings.') }}
 		</div>
 		<div class="account-form__submit-buttons">
 			<ButtonVue
@@ -286,6 +289,7 @@ import {
 	queryMx,
 	testConnectivity,
 } from '../service/AutoConfigService.js'
+import { generateOauthState } from '../service/OauthStateService.js'
 import useMainStore from '../store/mainStore.js'
 
 export default {
@@ -628,12 +632,12 @@ export default {
 							if (this.isGoogleAccount) {
 								this.feedback = t('mail', 'Account created. Please follow the pop-up instructions to link your Google account')
 								await getUserConsent(this.googleOauthUrl
-									.replace('_accountId_', account.id)
+									.replace('_state_', await generateOauthState(account.id))
 									.replace('_email_', encodeURIComponent(account.emailAddress)))
 							} else {
 								this.feedback = t('mail', 'Account created. Please follow the pop-up instructions to link your Microsoft account')
 								await getUserConsent(this.microsoftOauthUrl
-									.replace('_accountId_', account.id)
+									.replace('_state_', await generateOauthState(account.id))
 									.replace('_email_', encodeURIComponent(account.emailAddress)))
 							}
 						} catch (e) {
@@ -659,12 +663,12 @@ export default {
 							if (this.isGoogleAccount) {
 								this.feedback = t('mail', 'Account updated. Please follow the pop-up instructions to reconnect your Google account')
 								await getUserConsent(this.googleOauthUrl
-									.replace('_accountId_', account.id)
+									.replace('_state_', await generateOauthState(account.id))
 									.replace('_email_', encodeURIComponent(account.emailAddress)))
 							} else {
 								this.feedback = t('mail', 'Account updated. Please follow the pop-up instructions to reconnect your Microsoft account')
 								await getUserConsent(this.microsoftOauthUrl
-									.replace('_accountId_', account.id)
+									.replace('_state_', await generateOauthState(account.id))
 									.replace('_email_', encodeURIComponent(account.emailAddress)))
 							}
 						} catch (e) {
@@ -773,6 +777,7 @@ export default {
 
 <style scoped>
 h4 {
+	font-size: 17px;
 	text-align: start;
 }
 

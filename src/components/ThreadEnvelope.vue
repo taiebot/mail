@@ -55,19 +55,38 @@
 					@click.prevent="hasWriteAcl ? onToggleJunk() : false" />
 			</div>
 
-			<router-link
-				:to="route"
-				event=""
+			<div
 				class="left"
 				:class="{ seen: envelope.flags.seen }"
-				@click.native.prevent="$emit('toggle-expand', $event)">
+				role="button"
+				tabindex="0"
+				@click="$emit('toggle-expand', $event)"
+				@keydown.enter="$emit('toggle-expand', $event)"
+				@keydown.space.prevent="$emit('toggle-expand', $event)">
 				<div class="envelope__header__left__sender-subject-tags">
-					<div class="sender">
+					<div class="sender" :class="{ 'sender--expanded': expanded }">
 						{{ envelope.from && envelope.from[0] ? envelope.from[0].label : '' }}
-						<p class="sender__email" :style="{ color: senderEmailColor }">
-							{{ envelope.from && envelope.from[0] ? envelope.from[0].email : '' }}
-						</p>
 					</div>
+					<NcButton
+						v-if="expanded && hasRecipients"
+						type="button"
+						class="sender__email sender__email--toggle"
+						size="small"
+						variant="tertiary"
+						alignment="start-reverse"
+						:style="{ '--font-weight-element': 'normal' }"
+						@click.stop.prevent="showRecipients = !showRecipients">
+						{{ senderEmail }}
+						<template #icon>
+							<ChevronUpIcon v-if="showRecipients" :size="16" />
+							<ChevronDownIcon v-else :size="16" />
+						</template>
+					</NcButton>
+					<RecipientBubble
+						v-else-if="expanded && envelope.from && envelope.from[0]"
+						:email="envelope.from[0].email"
+						:label="envelope.from[0].label"
+						:size="24" />
 					<div v-if="hasChangedSubject" class="subline">
 						{{ cleanSubject }}
 					</div>
@@ -97,11 +116,11 @@
 						v-if="message && message.dkimValid && (message.unsubscribeUrl || message.unsubscribeMailto)"
 						variant="tertiary"
 						class="envelope__header__unsubscribe"
-						@click="showListUnsubscribeConfirmation = true">
+						@click.stop="showListUnsubscribeConfirmation = true">
 						{{ t('mail', 'Unsubscribe') }}
 					</NcButton>
 				</div>
-			</router-link>
+			</div>
 			<div class="right">
 				<Moment class="timestamp" :timestamp="envelope.dateInt" />
 				<template v-if="expanded">
@@ -271,6 +290,50 @@
 				</template>
 			</div>
 		</div>
+		<div v-if="expanded && showRecipients" class="envelope__recipients">
+			<div v-if="envelope.from && envelope.from.length" class="recipients">
+				<span class="recipients__label">{{ t('mail', 'From:') }}</span>
+				<RecipientBubble
+					v-for="recipient in envelope.from"
+					:key="recipient.email"
+					:email="recipient.email"
+					:label="recipient.label"
+					:size="24" />
+			</div>
+			<div v-if="envelope.to && envelope.to.length" class="recipients">
+				<span class="recipients__label">{{ t('mail', 'To:') }}</span>
+				<div class="recipients__list">
+					<RecipientBubble
+						v-for="(recipient, index) in envelope.to"
+						:key="`${recipient.email}-${index}`"
+						:email="recipient.email"
+						:label="recipient.label"
+						:size="24" />
+				</div>
+			</div>
+			<div v-if="envelope.cc && envelope.cc.length" class="recipients">
+				<span class="recipients__label">{{ t('mail', 'Cc:') }}</span>
+				<div class="recipients__list">
+					<RecipientBubble
+						v-for="(recipient, index) in envelope.cc"
+						:key="`${recipient.email}-${index}`"
+						:email="recipient.email"
+						:label="recipient.label"
+						:size="24" />
+				</div>
+			</div>
+			<div v-if="envelope.bcc && envelope.bcc.length" class="recipients">
+				<span class="recipients__label">{{ t('mail', 'Bcc:') }}</span>
+				<div class="recipients__list">
+					<RecipientBubble
+						v-for="(recipient, index) in envelope.bcc"
+						:key="`${recipient.email}-${index}`"
+						:email="recipient.email"
+						:label="recipient.label"
+						:size="24" />
+				</div>
+			</div>
+		</div>
 		<MessageLoadingSkeleton v-if="loading === Loading.Skeleton" />
 		<Message
 			v-if="message"
@@ -330,6 +393,8 @@ import { mapStores } from 'pinia'
 import NcActions from '@nextcloud/vue/components/NcActions'
 import NcActionText from '@nextcloud/vue/components/NcActionText'
 import ArchiveIcon from 'vue-material-design-icons/ArchiveArrowDownOutline.vue'
+import ChevronDownIcon from 'vue-material-design-icons/ChevronDown.vue'
+import ChevronUpIcon from 'vue-material-design-icons/ChevronUp.vue'
 import EmailRead from 'vue-material-design-icons/EmailOpenOutline.vue'
 import EmailUnread from 'vue-material-design-icons/EmailOutline.vue'
 import LockOffIcon from 'vue-material-design-icons/LockOffOutline.vue'
@@ -351,6 +416,7 @@ import Message from './Message.vue'
 import MessageLoadingSkeleton from './MessageLoadingSkeleton.vue'
 import Moment from './Moment.vue'
 import MoveModal from './MoveModal.vue'
+import RecipientBubble from './RecipientBubble.vue'
 import SourceModal from './SourceModal.vue'
 import TagModal from './TagModal.vue'
 import TaskModal from './TaskModal.vue'
@@ -389,6 +455,7 @@ export default {
 		TranslationModal,
 		ConfirmModal,
 		Avatar,
+		RecipientBubble,
 		NcActionButton,
 		NcButton,
 		Error,
@@ -403,6 +470,8 @@ export default {
 		EmailUnread,
 		DeleteIcon,
 		ArchiveIcon,
+		ChevronDownIcon,
+		ChevronUpIcon,
 		LockIcon,
 		LockOffIcon,
 		LockPlusIcon,
@@ -461,6 +530,7 @@ export default {
 	data() {
 		return {
 			loading: Loading.Done,
+			showRecipients: false,
 			showListUnsubscribeConfirmation: false,
 			error: undefined,
 			message: undefined,
@@ -488,6 +558,14 @@ export default {
 
 	computed: {
 		...mapStores(useOutboxStore, useMainStore),
+		senderEmail() {
+			return this.envelope.from?.[0]?.email ?? ''
+		},
+
+		hasRecipients() {
+			return !!(this.envelope.to?.length || this.envelope.cc?.length || this.envelope.bcc?.length)
+		},
+
 		inlineMenuSize() {
 			const { envelope } = this.$refs
 			const envelopeWidth = (envelope && envelope.clientWidth) || 250
@@ -524,7 +602,7 @@ export default {
 
 		hasMultipleRecipients() {
 			if (!this.account) {
-				console.error('account is undefined', {
+				logger.error('account is undefined', {
 					accountId: this.envelope.accountId,
 				})
 			}
@@ -533,16 +611,6 @@ export default {
 				email: this.account.emailAddress,
 			})
 			return recipients.to.concat(recipients.cc).length > 1
-		},
-
-		route() {
-			return {
-				name: 'message',
-				params: {
-					mailboxId: this.mailboxId || this.envelope.mailboxId,
-					threadId: this.envelope.databaseId,
-				},
-			}
 		},
 
 		isEncrypted() {
@@ -702,6 +770,7 @@ export default {
 			} else {
 				this.message = undefined
 				this.loading = Loading.Done
+				this.showRecipients = false
 			}
 		},
 
@@ -734,7 +803,7 @@ export default {
 		}, 100)
 	},
 
-	beforeUnmount() {
+	beforeDestroy() {
 		if (this.seenTimer !== undefined) {
 			logger.info('Navigating away before seenTimer delay, will not mark message as seen/read')
 			clearTimeout(this.seenTimer)
@@ -819,7 +888,11 @@ export default {
 
 			// Fetch smart replies
 			if (this.enabledFreePrompt && this.message && !['trash', 'junk'].includes(this.mailbox.specialRole) && !this.showFollowUpHeader) {
-				this.smartReplies = await smartReply(this.envelope.databaseId)
+				try {
+					this.smartReplies = await smartReply(this.envelope.databaseId)
+				} catch (error) {
+					logger.error('Could not fetch smart replies', { error })
+				}
 			}
 		},
 
@@ -1091,6 +1164,7 @@ export default {
 				}
 				this.showTranslationModal = true
 			} catch (error) {
+				logger.error('could not open translation modal, message not loaded', { error })
 				showError(t('mail', 'Please wait for the message to load'))
 			}
 		},
@@ -1122,12 +1196,25 @@ export default {
 
 <style lang="scss" scoped>
 	.sender {
-		margin-inline-start: calc(var(--default-grid-baseline) * 2);
-		&__email{
-			text-overflow: ellipsis;
-			overflow: hidden;
+		margin-inline-start: calc(var(--default-grid-baseline) * 3);
+
+		&--expanded {
+			color: var(--color-text-maxcontrast);
 		}
 
+		&__email {
+			text-overflow: ellipsis;
+			overflow: hidden;
+
+			&--toggle {
+				margin-inline-start: calc(var(--default-grid-baseline) * 2);
+
+				:deep(.button-vue__text) {
+					font-weight: normal;
+					color: var(--color-text-maxcontrast);
+				}
+			}
+		}
 	}
 
 	.right {
@@ -1364,6 +1451,36 @@ export default {
 		overflow: hidden;
 		text-overflow: ellipsis;
 		inset-inline-start: var(--default-grid-baseline);
+	}
+
+	.envelope__recipients {
+		// align with sender name: header padding + avatar (40px) + gap (2 * grid-baseline)
+		padding-inline-start: calc(var(--border-radius-container) + var(--default-grid-baseline) * 10 + var(--default-grid-baseline) * 3);
+		padding-inline-end: var(--border-radius-container);
+		padding-block: var(--default-grid-baseline) calc(var(--default-grid-baseline) * 2);
+		display: flex;
+		flex-direction: column;
+		gap: calc(var(--default-grid-baseline));
+
+		.recipients {
+			display: flex;
+			flex-direction: row;
+
+			&__label {
+				color: var(--color-text-maxcontrast);
+				white-space: nowrap;
+				min-width: calc(var(--default-grid-baseline) * 8);
+				height: 100%;
+			}
+
+			&__list {
+				display: flex;
+				align-items: center;
+				flex-wrap: wrap;
+				gap: var(--default-grid-baseline);
+			}
+
+		}
 	}
 
 	.smime-text {

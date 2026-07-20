@@ -30,7 +30,7 @@ import {
 	Base64UploadAdapter,
 	BlockQuote,
 	Bold,
-	DecoupledEditor,
+	ClassicEditor,
 	DropdownView,
 	Essentials,
 	FindAndReplace,
@@ -46,6 +46,7 @@ import {
 	Mention,
 	Paragraph,
 	RemoveFormat,
+	SourceEditing,
 	Strikethrough,
 	Subscript,
 	Superscript,
@@ -153,6 +154,7 @@ export default {
 				RemoveFormat,
 				Base64UploadAdapter,
 				MailPlugin,
+				SourceEditing,
 				TextDirectionPlugin,
 			])
 			toolbar.unshift(...[
@@ -177,6 +179,7 @@ export default {
 				'link',
 				'removeFormat',
 				'findAndReplace',
+				'sourceEditing',
 			])
 		}
 
@@ -185,8 +188,11 @@ export default {
 			emojiTribute: null,
 			contactMentionQuery: null,
 			textSmiles: [],
+			sourceEditingInputHandler: null,
+			sourceEditingModeHandler: null,
+			sourceEditingDebounceTimer: null,
 			ready: false,
-			editor: DecoupledEditor,
+			editor: ClassicEditor,
 			config: {
 				licenseKey: 'GPL',
 				placeholder: this.placeholder,
@@ -220,14 +226,44 @@ export default {
 
 				htmlSupport: {
 					allow: [
+						'table',
+						'tbody',
+						'td',
+						'tfoot',
+						'th',
+						'thead',
+						'tr',
+						'figure',
+						{
+							name: 'a',
+							attributes: ['title', 'name', 'id'],
+							classes: true,
+							styles: true,
+						},
 						{
 							name: 'img',
-							attributes: {
-								'data-cid': true,
-							},
+							attributes: ['src', 'alt', 'title', 'width', 'height', 'data-cid', 'loading'],
+							styles: true,
 						},
 					],
 				},
+
+				// Preserve arbitrary font sizes/families on inserted or pasted
+				// HTML (e.g. app-generated signatures). Without supportAllValues
+				// the Font plugins drop any value not in their preset list, so
+				// raw-HTML signatures lose font-size/font-family on send.
+				// NOTE: supportAllValues is incompatible with the default *named*
+				// presets ('tiny'/'big'/…) — it requires numeric options, or
+				// CKEditor throws at init and the editor fails to mount.
+				fontSize: {
+					options: [9, 10, 11, 12, 13, 14, 16, 18, 24, 'default'],
+					supportAllValues: true,
+				},
+
+				fontFamily: {
+					supportAllValues: true,
+				},
+
 			},
 		}
 	},
@@ -236,7 +272,45 @@ export default {
 		this.loadEditorTranslations(getLanguage())
 	},
 
+	beforeDestroy() {
+		this.unregisterSourceEditingInputListener()
+
+		if (this.editorInstance?.plugins.has('SourceEditing') && this.sourceEditingModeHandler) {
+			this.editorInstance.plugins.get('SourceEditing').off('change:isSourceEditingMode', this.sourceEditingModeHandler)
+		}
+	},
+
 	methods: {
+		registerSourceEditingInputListener() {
+			const textarea = this.editorInstance.ui.getEditableElement('sourceEditing:main')
+
+			if (!textarea || this.sourceEditingInputHandler) {
+				return
+			}
+
+			this.sourceEditingInputHandler = () => {
+				clearTimeout(this.sourceEditingDebounceTimer)
+				this.sourceEditingDebounceTimer = setTimeout(() => {
+					this.editorInstance.plugins.get('SourceEditing').updateEditorData()
+				}, 300)
+			}
+
+			textarea.addEventListener('input', this.sourceEditingInputHandler)
+		},
+
+		unregisterSourceEditingInputListener() {
+			clearTimeout(this.sourceEditingDebounceTimer)
+			this.sourceEditingDebounceTimer = null
+
+			if (!this.sourceEditingInputHandler) {
+				return
+			}
+
+			const textarea = this.editorInstance?.ui.getEditableElement('sourceEditing:main')
+			textarea?.removeEventListener('input', this.sourceEditingInputHandler)
+			this.sourceEditingInputHandler = null
+		},
+
 		getLink(text) {
 			const results = searchProvider(text)
 			if (results.length === 1 && !results[0].title.toLowerCase().includes(text.toLowerCase())) {
@@ -483,7 +557,7 @@ export default {
 							this.editorInstance.editing.view.focus()
 						})
 						.catch((error) => {
-							console.debug('Smart picker promise rejected:', error)
+							logger.debug('Smart picker promise rejected', { error })
 						})
 				}
 				if (eventData.marker === '@') {
@@ -496,9 +570,29 @@ export default {
 				}
 			}, { priority: 'high' })
 
+			if (editor.plugins.has('SourceEditing')) {
+				this.sourceEditingModeHandler = (_event, _name, isSourceEditingMode) => {
+					if (isSourceEditingMode) {
+						this.registerSourceEditingInputListener()
+						return
+					}
+
+					this.unregisterSourceEditingInputListener()
+				}
+
+				editor.plugins.get('SourceEditing').on('change:isSourceEditingMode', this.sourceEditingModeHandler)
+			}
+
 			editor.keystrokes.set('Ctrl+Enter', (event) => {
 				logger.debug('Detected Ctrl+Enter/Cmd+Enter', event)
 				this.$emit('submit', editor)
+			})
+
+			editor.keystrokes.set('Ctrl+S', (event) => {
+				event.preventDefault()
+				event.stopPropagation()
+				logger.debug('Detected Ctrl+S/Cmd+S', event)
+				this.$emit('save', editor)
 			})
 
 			this.editorInstance = editor
@@ -510,6 +604,21 @@ export default {
 
 			if (this.html) {
 				this.addToFocusTrap('.ck-body-wrapper')
+
+				editor.keystrokes.set('Ctrl+Alt+1', (event, cancel) => {
+					editor.execute('heading', { value: 'heading1' })
+					cancel()
+				})
+
+				editor.keystrokes.set('Ctrl+Alt+2', (event, cancel) => {
+					editor.execute('heading', { value: 'heading2' })
+					cancel()
+				})
+
+				editor.keystrokes.set('Ctrl+Alt+3', (event, cancel) => {
+					editor.execute('heading', { value: 'heading3' })
+					cancel()
+				})
 			}
 
 			this.bus.on('append-to-body-at-cursor', this.appendToBodyAtCursor)

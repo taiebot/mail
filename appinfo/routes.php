@@ -211,6 +211,11 @@ return [
 			'verb' => 'POST'
 		],
 		[
+			'name' => 'messages#saveFile',
+			'url' => '/api/messages/{id}/file',
+			'verb' => 'POST'
+		],
+		[
 			'name' => 'messages#getBody',
 			'url' => '/api/messages/{id}/body',
 			'verb' => 'GET'
@@ -476,6 +481,11 @@ return [
 			'verb' => 'GET',
 		],
 		[
+			'name' => 'oauth#generateState',
+			'url' => '/api/oauth/state',
+			'verb' => 'POST',
+		],
+		[
 			'name' => 'list#unsubscribe',
 			'url' => '/api/list/unsubscribe/{id}',
 			'verb' => 'POST',
@@ -504,6 +514,21 @@ return [
 			'name' => 'followUp#checkMessageIds',
 			'url' => '/api/follow-up/check-message-ids',
 			'verb' => 'POST',
+		],
+		[
+			'name' => 'delegation#getDelegatedUsers',
+			'url' => '/api/delegations/{accountId}',
+			'verb' => 'GET',
+		],
+		[
+			'name' => 'delegation#delegate',
+			'url' => '/api/delegations/{accountId}',
+			'verb' => 'POST',
+		],
+		[
+			'name' => 'delegation#unDelegate',
+			'url' => '/api/delegations/{accountId}/{userId}',
+			'verb' => 'DELETE',
 		],
 		[
 			'name' => 'textBlockShares#getTextBlockShares',

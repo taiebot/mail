@@ -77,8 +77,6 @@ export default {
 		},
 
 		signatureSummary() {
-			console.info(this.signature.match(regFirstParagraph))
-
 			return this.signatureSummaryAndBody.summary
 		},
 	},
@@ -108,7 +106,7 @@ export default {
 </style>
 
 <style lang="scss" scoped>
-.message-container,
+#message-container,
 .mail-signature {
 	white-space: pre-wrap;
 }
